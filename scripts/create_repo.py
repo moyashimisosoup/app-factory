@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""App Factory v0.1: validated, private-only GitHub repository creation.
+"""App Factory v0.2: validated private/public opt-in GitHub repository creation.
 
 Designed to run in a PUBLIC intake repository on an owner-approved Issue label.
 WARNING: Issue contents and Action logs are public. Never enter private app ideas.
@@ -26,7 +26,8 @@ ISSUE_BLOCK = re.compile(
 REPO_NAME = re.compile(r"^[a-z][a-z0-9-]{2,48}[a-z0-9]$")
 RESERVED = {"app-factory", "session-deck", "koten", "tradingsystem", "example-learning-tool", "replace-with-public-safe-slug"}
 LOCK_PREFIX = "<!-- APP_FACTORY_APPROVAL_LOCK_V1"
-FIELDS = {"schema_version", "repo_name", "app_name", "description", "visibility", "decision", "public_intake_ack"}
+PRIVATE_FIELDS = {"schema_version", "repo_name", "app_name", "description", "visibility", "decision", "public_intake_ack"}
+PUBLIC_FIELDS = PRIVATE_FIELDS | {"public_repo_ack"}
 BASE = "https://api.github.com"
 API_VERSION = "2022-11-28"
 
@@ -40,6 +41,7 @@ class RequestData:
     repo_name: str
     app_name: str
     description: str
+    visibility: str
 
 
 def parse_request(body: str) -> RequestData:
@@ -60,14 +62,23 @@ def parse_request(body: str) -> RequestData:
         data = json.loads(blocks[0], object_pairs_hook=unique_pairs)
     except ValueError as exc:
         raise FactoryError("Request JSON is invalid.") from exc
-    if not isinstance(data, dict) or set(data) != FIELDS:
-        raise FactoryError("Unexpected request fields; use the approved v1 schema only.")
-    if type(data["schema_version"]) is not int or data["schema_version"] != 2:
-        raise FactoryError("Public intake requires schema_version 2.")
+    if not isinstance(data, dict) or "schema_version" not in data:
+        raise FactoryError("Invalid repository request schema.")
+    schema = data["schema_version"]
+    if type(schema) is not int:
+        raise FactoryError("schema_version must be an integer.")
+    if schema == 2 and set(data) == PRIVATE_FIELDS and data["visibility"] == "private":
+        visibility = "private"
+    elif schema == 3 and set(data) == PUBLIC_FIELDS and data["visibility"] == "public":
+        if data["public_repo_ack"] is not True:
+            raise FactoryError("Explicit acknowledgement of PUBLIC destination visibility is required.")
+        visibility = "public"
+    else:
+        raise FactoryError("Use schema v2 for private or v3 with public_repo_ack=true for public.")
     if data["public_intake_ack"] is not True:
         raise FactoryError("Explicit acknowledgement of PUBLIC Issue visibility is required.")
-    if data["visibility"] != "private" or data["decision"] != "adopted":
-        raise FactoryError("Only explicitly adopted, private repositories are permitted.")
+    if data["decision"] != "adopted":
+        raise FactoryError("Only explicitly adopted repository requests are permitted.")
     slug = data["repo_name"]
     if not isinstance(slug, str) or not REPO_NAME.fullmatch(slug) or slug in RESERVED:
         raise FactoryError("repo_name must be a unique, lowercase ASCII kebab-case slug.")
@@ -78,7 +89,7 @@ def parse_request(body: str) -> RequestData:
         raise FactoryError("description must be 1-200 characters.")
     if any(c in title + desc for c in ("\r", "\n", "\x00")):
         raise FactoryError("app_name and description cannot contain line breaks or NUL.")
-    return RequestData(repo_name=slug, app_name=title.strip(), description=desc.strip())
+    return RequestData(repo_name=slug, app_name=title.strip(), description=desc.strip(), visibility=visibility)
 
 
 def request_api(token: str, method: str, path: str, payload: dict | None = None):
@@ -107,7 +118,7 @@ def request_api(token: str, method: str, path: str, payload: dict | None = None)
 
 
 def ensure_approval_lock(data: RequestData, issue_number: int, issue_token: str) -> None:
-    """Pin the repository slug to this private Issue before any creation attempt.
+    """Pin the slug and visibility to this public intake Issue before any creation attempt.
 
     Uses GITHUB_TOKEN with issues:write, not the account-wide repo creator.
     A changed Issue body + relabel must never create a second repository.
@@ -118,7 +129,8 @@ def ensure_approval_lock(data: RequestData, issue_number: int, issue_token: str)
     if type(issue_number) is not int or not 1 <= issue_number <= 10_000_000:
         raise FactoryError("A positive source Issue number is required.")
     path = f"/repos/{FACTORY_REPOSITORY}/issues/{issue_number}/comments?per_page=100"
-    expected = f"{LOCK_PREFIX} issue={issue_number} repo={data.repo_name} -->"
+    visibility_lock = "" if data.visibility == "private" else " visibility=public"
+    expected = f"{LOCK_PREFIX} issue={issue_number} repo={data.repo_name}{visibility_lock} -->"
 
     def inspect(comments):
         if not isinstance(comments, list):
@@ -167,7 +179,7 @@ def create_repository(data: RequestData, issue_number: int, token: str) -> tuple
     existing_status, existing = request_api(token, "GET", f"/repos/{OWNER}/{quote(data.repo_name)}")
     marker_url = f"https://github.com/{FACTORY_REPOSITORY}/issues/{issue_number}"
     if existing_status == 200:
-        if existing.get("private") is True and existing.get("homepage") == marker_url:
+        if existing.get("private") is (data.visibility == "private") and existing.get("homepage") == marker_url:
             return existing["html_url"], False
         raise FactoryError("Repository name already exists and is not owned by this request.")
     if existing_status != 404:
@@ -176,7 +188,7 @@ def create_repository(data: RequestData, issue_number: int, token: str) -> tuple
     payload = {
         "name": data.repo_name,
         "description": data.description,
-        "private": True,
+        "private": data.visibility == "private",
         "auto_init": True,
         "has_issues": True,
         "has_projects": False,
@@ -187,9 +199,9 @@ def create_repository(data: RequestData, issue_number: int, token: str) -> tuple
     if (
         created_status != 201
         or new_repo.get("full_name", "").lower() != f"{OWNER}/{data.repo_name}"
-        or new_repo.get("private") is not True
+        or new_repo.get("private") is not (data.visibility == "private")
     ):
-        raise FactoryError("GitHub did not confirm a private repository with the expected owner.")
+        raise FactoryError("GitHub did not confirm the requested repository visibility and owner.")
     return new_repo["html_url"], True
 
 
@@ -209,16 +221,16 @@ def main(argv: list[str] | None = None) -> int:
             )
             result = {"status": "created" if created else "already-created", "repo_url": repo_url}
         else:
-            result = {"status": "validated-only", "repo_name": data.repo_name, "visibility": "private"}
-        # Public Actions logs must never disclose PRIVATE destination URLs.
+            result = {"status": "validated-only", "repo_name": data.repo_name, "visibility": data.visibility}
+        # Public Actions logs must never disclose destination URLs.
         if args.execute:
-            print(json.dumps({"status": result["status"], "visibility": "private"}, ensure_ascii=False))
+            print(json.dumps({"status": result["status"], "visibility": data.visibility}, ensure_ascii=False))
         else:
             print(json.dumps(result, ensure_ascii=False))
         output = os.environ.get("GITHUB_OUTPUT")
         if output and args.execute:
             with open(output, "a", encoding="utf-8") as f:
-                f.write(f"status={result['status']}\n")
+                f.write(f"status={result['status']}\nvisibility={data.visibility}\n")
         return 0
     except FactoryError as exc:
         # No untrusted Issue fields or response bodies in public workflow errors.
