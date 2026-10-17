@@ -4,6 +4,12 @@
 
 > **重要:** ここは公開リポジトリです。Issueのタイトル、本文、コメント、Actionsログは誰でも閲覧できます。非公開のアイデア、学校関係の情報、個人情報、アクセストークン、会話URLなどは**絶対に入力しないでください**。公開できない申請は、このIssueを使わずに非公開チャット内で検討してください。
 
+## 初回本番疎通の結果（2026-10-17 JST）
+
+**GitHub Actions経由でPrivateリポジトリ1件の生成に成功。** [承認済みIssue #4](https://github.com/moyashimisosoup/app-factory/issues/4) → [Actions実行 #39026244548：success](https://github.com/moyashimisosoup/app-factory/actions/runs/39026244548) → 認証されたGitHub接続から作成先の**実在・Visibility Private・main/README**を確認。公開Issueには作成先PrivateリポジトリのURLを投稿していない。
+
+作成専用Secretが**この実行で使用できたこと**は検証済み。ただしGitHub Actions Secretの値・期限・設定画面は取得していない。異なる申請や改変後の再承認に対する本番多重実行は未検証で、衝突・冪等性はユニットテストで確認した段階。初期ファイル自動配置、APP-ID登録、Pages公開は未自動化。作成テストを目的なく繰り返さない。
+
 ## 今できること
 
 - GitHub Issueに、**公開して問題ない**アプリ名・短い説明・リポジトリ名を登録する。
@@ -50,7 +56,7 @@ GitHub Actionsの **App Factory CI** と **App Factory offline readiness tests**
 
 公式情報：[GitHubの専用権限追加](https://github.blog/changelog/2026-10-13-github-app-improvements-for-least-privilege-and-management/)／[Repo作成API](https://docs.github.com/en/rest/repos/repos#create-a-repository-for-the-authenticated-user)。
 
-### 3. 初めての動作確認
+### 3. 初めての動作確認（2026-10-17に1件成功。以下は次回以降も使う手順）
 
 1. [Issue作成](https://github.com/moyashimisosoup/app-factory/issues/new/choose)から、一般公開して問題のない**採用済み**のアプリ申請を作る。テンプレートの`repo_name`等を確実に変更する。
 2. **ラベルなし**ならリポジトリはできないことを確認する。
