@@ -1,4 +1,4 @@
-name: App Factory private repository creation
+name: App Factory repository creation
 
 on:
   issues:
@@ -30,7 +30,7 @@ jobs:
       - name: Preflight offline safety tests (no secret required)
         run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
 
-      - name: Validate adopted issue and create PRIVATE repository
+      - name: Validate adopted issue and create requested repository
         id: factory
         env:
           APP_FACTORY_ISSUE_BODY: ${{ github.event.issue.body }}
@@ -42,12 +42,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RESULT_STATUS: ${{ steps.factory.outputs.status }}
+          RESULT_VISIBILITY: ${{ steps.factory.outputs.visibility }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
+          case "$RESULT_VISIBILITY" in
+            public) kind="PUBLIC" ;;
+            private) kind="PRIVATE" ;;
+            *) echo "Unrecognized destination visibility"; exit 1 ;;
+          esac
           if [ "$RESULT_STATUS" = "created" ]; then
-            note="A PRIVATE repository was created successfully."
+            note="A $kind repository was created successfully."
+          elif [ "$RESULT_STATUS" = "already-created" ]; then
+            note="The previously-created $kind repository was confirmed (safe retry)."
           else
-            note="The previously-created PRIVATE repository was confirmed (safe retry)."
+            echo "Unrecognized result"; exit 1
           fi
           note="$note"$'\n\n'"The destination URL is intentionally not published in this public Issue or public Actions logs. To initialize the repository, find it in your authenticated GitHub repositories and verify its visibility, then add the starter files and register a public-safe entry in Session Deck. No web page was published."
           gh issue comment "$ISSUE_NUMBER" --body "$note"
