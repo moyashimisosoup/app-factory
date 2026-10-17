@@ -24,7 +24,7 @@ ISSUE_BLOCK = re.compile(
     re.escape(MARKER) + r"\s*" + ("~" * 3) + r"json\s*\n(.*?)\n" + ("~" * 3), re.DOTALL
 )
 REPO_NAME = re.compile(r"^[a-z][a-z0-9-]{2,48}[a-z0-9]$")
-RESERVED = {"app-factory", "session-deck", "koten", "tradingsystem", "example-learning-tool"}
+RESERVED = {"app-factory", "session-deck", "koten", "tradingsystem", "example-learning-tool", "replace-with-public-safe-slug"}
 LOCK_PREFIX = "<!-- APP_FACTORY_APPROVAL_LOCK_V1"
 FIELDS = {"schema_version", "repo_name", "app_name", "description", "visibility", "decision", "public_intake_ack"}
 BASE = "https://api.github.com"
