@@ -1,0 +1,44 @@
+name: App Factory offline readiness tests
+
+# Public intake: run after main deployment to self-check and provision label.
+# Never creates a repository and never reads creator secrets.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  offline-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate request parser and GitHub API safety offline
+        run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
+      - name: Check that deployment and issue templates were installed
+        run: |
+          test -f scripts/create_repo.py
+          test -f .github/workflows/create-repo.yml
+          test -f .github/ISSUE_TEMPLATE/new-app.md
+          grep -q 'factory-approved' .github/workflows/create-repo.yml
+          grep -q 'APP_FACTORY_ISSUE_TOKEN' .github/workflows/create-repo.yml
+          echo "Offline checks passed (no new repository was created)."
+      - name: Create missing approval label in PRIVATE factory repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_REPOSITORY" != "moyashimisosoup/app-factory" ]; then
+            echo "This workflow is only allowed in the private App Factory repo."
+            exit 1
+          fi
+          if gh label list --json name --jq '.[].name' | grep -Fxq 'factory-approved'; then
+            echo "Approval label already exists."
+          else
+            gh label create factory-approved --color "1D76DB" --description "Owner-approved private App Factory repository creation request"
+            echo "Approval label created."
+          fi
+          echo "READY FOR PRIVATE CREDENTIAL CONFIGURATION (repository creation not executed)."
