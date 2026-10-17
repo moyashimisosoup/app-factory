@@ -1,0 +1,29 @@
+name: App Factory CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check worker syntax
+        run: python3 -m py_compile scripts/create_repo.py scripts/test_create_repo.py
+      - name: Offline request, approval-lock, and idempotence tests
+        run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
+      - name: Check workflows and template are present
+        run: |
+          test -f .github/workflows/create-repo.yml
+          test -f .github/workflows/preflight.yml
+          test -f .github/ISSUE_TEMPLATE/new-app.md
+          grep -q 'public_intake_ack' scripts/create_repo.py
+          grep -q "github.event.issue.user.login == 'moyashimisosoup'" .github/workflows/create-repo.yml
+          grep -q 'APP_FACTORY_REPO_CREATOR' .github/workflows/create-repo.yml
+          echo "No live repository creation was attempted."
