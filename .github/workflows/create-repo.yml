@@ -38,7 +38,7 @@ jobs:
           APP_FACTORY_REPO_CREATOR: ${{ secrets.APP_FACTORY_REPO_CREATOR }}
         run: python3 scripts/create_repo.py --issue "${{ github.event.issue.number }}" --execute
 
-      - name: Record confirmed result on private issue
+      - name: Record confirmed result on public issue (URL redacted)
         env:
           GH_TOKEN: ${{ github.token }}
           RESULT_STATUS: ${{ steps.factory.outputs.status }}
@@ -49,6 +49,5 @@ jobs:
           else
             note="The previously-created PRIVATE repository was confirmed (safe retry)."
           fi
-          note="$note"
-\n\n'"The destination URL is intentionally not published in this public Issue or public Actions logs. To initialize the repository, find it in your authenticated GitHub repositories and verify its visibility, then add the starter files and register a public-safe entry in Session Deck. No web page was published."
+          note="$note"$'\n\n'"The destination URL is intentionally not published in this public Issue or public Actions logs. To initialize the repository, find it in your authenticated GitHub repositories and verify its visibility, then add the starter files and register a public-safe entry in Session Deck. No web page was published."
           gh issue comment "$ISSUE_NUMBER" --body "$note"
