@@ -1,6 +1,6 @@
 # App Factory
 
-**「新アプリ案」→採用→GitHubのPrivateリポジトリ作成**の受付・自動化基盤です。
+**「新アプリ案」→採用→GitHubリポジトリ作成**の受付・自動化基盤です。標準Private、明示的に承認されたPublic申請にも対応します。
 
 > **重要:** ここは公開リポジトリです。Issueのタイトル、本文、コメント、Actionsログは誰でも閲覧できます。非公開のアイデア、学校関係の情報、個人情報、アクセストークン、会話URLなどは**絶対に入力しないでください**。公開できない申請は、このIssueを使わずに非公開チャット内で検討してください。
 
@@ -10,11 +10,15 @@
 
 作成専用Secretが**この実行で使用できたこと**は検証済み。ただしGitHub Actions Secretの値・期限・設定画面は取得していない。異なる申請や改変後の再承認に対する本番多重実行は未検証で、衝突・冪等性はユニットテストで確認した段階。初期ファイル自動配置、APP-ID登録、Pages公開は未自動化。作成テストを目的なく繰り返さない。
 
+## Public作成の追加条件
+
+Public作成は既存のPrivate作成とは異なる明示オプトインです。公開IssueのJSONに `schema_version: 3`、`visibility: public`、`public_repo_ack: true` を記載し、本人が対象Issueと公開設定を確認した後に承認ラベルを付けてください。Privateのv2申請を自動的にPublicへ変更することはありません。GitHub Pagesによるアプリ公開は別工程です。
+
 ## 今できること
 
 - GitHub Issueに、**公開して問題ない**アプリ名・短い説明・リポジトリ名を登録する。
 - ユーザーがアプリを採用し、GitHub所有者が`factory-approved`ラベルを付けた場合だけ、GitHub Actionsから新規Repoを作成する。
-- 作成するRepoは**常にPrivate**。公開作成へのフォールバックは禁止。
+- 標準は**Private**。Publicは `schema_version: 3`、`visibility: public`、`public_repo_ack: true` と所有者の明示承認がすべて揃う場合のみ許可。Private v2は従来どおり。
 - 形式検査、認証アカウント確認、既存名衝突時の拒否、Issue番号＋slugの承認ロック、再実行時の二重作成防止を実装。
 - **生成先RepoのURLを公開Issueや公開Actionsログには出さない。** 所有者がGitHub上で確認する。
 
@@ -24,8 +28,8 @@
 | --- | --- |
 | 「新アプリ案：◯◯」 | 既存アプリ・Repoと照合し、**構想だけ整理**。Repoは作らない |
 | 「この案を採用してApp Factoryに申請」 | 申請内容が公開可能か確かめ、`moyashimisosoup/app-factory`にIssueを登録。まだRepoは作らない |
-| 「Issue #NNのRepo作成を承認」 | Issue内容と重複を再確認し、本人の明示承認がある場合にのみ`factory-approved`を付与 |
-| Actions成功後 | GitHubの本人認証で新Repoを見つけ、**Private**確認。初期ファイル作成とSession Deck登録は別工程 |
+| 「Issue #NNのRepo作成を承認」 | 内容・可視性と重複を再確認し、本人の明示承認がある場合にのみ`factory-approved`を付与 |
+| Actions成功後 | GitHubの本人認証で新Repoを見つけ、申請された**Private/Public**を確認。初期ファイル作成とSession Deck登録は別工程 |
 
 **各段階は別物です。** Issue登録、新Repo作成、初期ファイル保存、APP-ID台帳登録、公開サイト配信を混同しません。
 
@@ -35,7 +39,7 @@
 
 このRepoの`main`に以下が必要です。
 
-- `scripts/create_repo.py`: 作成API、安全検査、冪等処理
+- `scripts/create_repo.py`: 作成API、安全検査、冪等処理（v2 Private / v3 Public）
 - `scripts/test_create_repo.py`: オフラインの回帰テスト
 - `.github/workflows/ci.yml`: PRごとの安全検証
 - `.github/workflows/preflight.yml`: `main`で自動実行する初期検証・承認用ラベル作成
@@ -60,8 +64,8 @@ GitHub Actionsの **App Factory CI** と **App Factory offline readiness tests**
 
 1. [Issue作成](https://github.com/moyashimisosoup/app-factory/issues/new/choose)から、一般公開して問題のない**採用済み**のアプリ申請を作る。テンプレートの`repo_name`等を確実に変更する。
 2. **ラベルなし**ならリポジトリはできないことを確認する。
-3. Repoが未使用名であることを確かめてから、所有者が`factory-approved`を付ける。GitHub Actions `App Factory private repository creation`が実行される。
-4. Actionsが成功したら、**公開IssueにはPrivate RepoのURLが書かれない**ことを確認する。本人のGitHubリポジトリ一覧から生成先を開き、`Visibility: Private`を確認する。
+3. Repoが未使用名であることと可視性の承認を確かめてから、所有者が`factory-approved`を付ける。GitHub Actions `App Factory repository creation`が実行される。
+4. Actionsが成功したら、**公開IssueにはRepoのURLが書かれない**ことを確認する。本人のGitHubリポジトリ一覧から生成先を開き、申請どおりの可視性を確認する。
 5. GitHub接続に新Repoが見える場合、ChatGPTが`README.md`、`AGENTS.md`、`index.html`、`docs/ROADMAP.md`を整える。Session DeckのAPP-IDは全体台帳との照合後に登録する。
 6. 同じIssueを編集して新しい名前に変更しても、承認済みslug以外の作成は拒否。作成済みの同じ申請は二重作成しない。
 
@@ -72,7 +76,7 @@ GitHub Actionsの **App Factory CI** と **App Factory offline readiness tests**
 
 ## 注意事項と限界
 
-- 申請Issueに記載したslug/アプリ名/短い説明は**公開**される。これを秘密にしたい場合はIssueへ書かない。Private Repoの中身自体はこのFactoryからは公開されない。
+- 申請Issueに記載したslug/アプリ名/短い説明は**公開**される。Private Repoの中身自体はこのFactoryからは公開されない。一方、Public申請の作成先の内容は公開される。
 - Issueの`public_intake_ack: true` は公開されることへの同意を示す。コードによる自動機密検出の保証ではない。
 - 生成したRepoの初期ファイル配置、Session Deckの台帳登録、Web公開はまだ**自動化されていない**。ChatGPT GitHub操作で別途実施し、読戻し検証する。
 - 現在接続されたChatGPT GitHubツールには「新Repo作成」の直接操作がないため、**GitHub Actionsで代理作成**する。専用Secretが未設定なら作成は失敗し、安全に停止する。
