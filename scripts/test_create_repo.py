@@ -33,9 +33,28 @@ class ParseTests(unittest.TestCase):
         with self.assertRaises(app.FactoryError):
             app.parse_request(body(schema_version=1))
 
-    def test_reject_public(self):
+    def test_reject_public_in_legacy_schema(self):
         with self.assertRaises(app.FactoryError):
             app.parse_request(body(visibility="public"))
+
+    def test_valid_public_request_requires_v3_explicit_ack(self):
+        v = app.parse_request(body(schema_version=3, visibility="public", public_repo_ack=True))
+        self.assertEqual(v.visibility, "public")
+
+    def test_reject_public_without_ack(self):
+        for flag in (None, False, "true", 1):
+            with self.subTest(flag=flag), self.assertRaises(app.FactoryError):
+                app.parse_request(body(schema_version=3, visibility="public", public_repo_ack=flag))
+
+    def test_reject_schema3_private_and_extra_fields(self):
+        with self.assertRaises(app.FactoryError):
+            app.parse_request(body(schema_version=3, visibility="private", public_repo_ack=True))
+        with self.assertRaises(app.FactoryError):
+            app.parse_request(body(schema_version=2, visibility="private", public_repo_ack=True))
+
+    def test_reject_public_without_issue_ack(self):
+        with self.assertRaises(app.FactoryError):
+            app.parse_request(body(schema_version=3, visibility="public", public_repo_ack=True, public_intake_ack=False))
 
     def test_reject_unadopted(self):
         with self.assertRaises(app.FactoryError):
@@ -106,6 +125,22 @@ class ApprovalLockTests(unittest.TestCase):
         self.assertEqual(api.call_count, 1)
 
     @patch.object(app, "request_api")
+    def test_public_request_cannot_reuse_private_approval_lock(self, api):
+        api.return_value = (200, [self.bot])
+        public = app.parse_request(body(schema_version=3, visibility="public", public_repo_ack=True))
+        with self.assertRaisesRegex(app.FactoryError, "different approval lock"):
+            app.ensure_approval_lock(public, self.issue, "test-issue-token")
+
+    @patch.object(app, "request_api")
+    def test_public_approval_lock_records_visibility(self, api):
+        public = app.parse_request(body(schema_version=3, visibility="public", public_repo_ack=True))
+        record = {"user": {"login": "github-actions[bot]"},
+                  "body": "<!-- APP_FACTORY_APPROVAL_LOCK_V1 issue=42 repo=sample-learning-tool visibility=public -->"}
+        api.side_effect = [(200, []), (201, {"id": 1}), (200, [record])]
+        app.ensure_approval_lock(public, self.issue, "test-issue-token")
+        self.assertIn("visibility=public", api.call_args_list[1].args[3]["body"])
+
+    @patch.object(app, "request_api")
     def test_full_page_with_no_lock_fails_closed(self, api):
         api.return_value = (200, [{"user":{"login":"someone"},"body":"hello"}] * 100)
         with self.assertRaisesRegex(app.FactoryError, "Too many"):
@@ -144,6 +179,43 @@ class GitHubCalls(unittest.TestCase):
         self.assertIs(created_payload["private"], True)
         self.assertIs(created_payload["auto_init"], True)
         self.assertEqual(created_payload["homepage"], "https://github.com/moyashimisosoup/app-factory/issues/42")
+
+    @patch.object(app, "request_api")
+    def test_create_explicitly_public_with_marker(self, req):
+        public = app.parse_request(body(schema_version=3, visibility="public", public_repo_ack=True))
+        req.side_effect = [
+            (200, {"login": "moyashimisosoup"}),
+            (404, None),
+            (201, {"full_name": "moyashimisosoup/sample-learning-tool",
+                   "private": False, "html_url": "https://github.com/moyashimisosoup/sample-learning-tool"}),
+        ]
+        url, created = app.create_repository(public, self.issue, "dummy-not-real")
+        self.assertTrue(created)
+        self.assertEqual(url, "https://github.com/moyashimisosoup/sample-learning-tool")
+        self.assertIs(req.call_args.args[3]["private"], False)
+
+    @patch.object(app, "request_api")
+    def test_reject_wrong_visibility_response(self, req):
+        public = app.parse_request(body(schema_version=3, visibility="public", public_repo_ack=True))
+        req.side_effect = [
+            (200, {"login": "moyashimisosoup"}),
+            (404, None),
+            (201, {"full_name": "moyashimisosoup/sample-learning-tool", "private": True}),
+        ]
+        with self.assertRaisesRegex(app.FactoryError, "visibility"):
+            app.create_repository(public, self.issue, "dummy-not-real")
+
+    @patch.object(app, "request_api")
+    def test_public_safe_retry(self, req):
+        public = app.parse_request(body(schema_version=3, visibility="public", public_repo_ack=True))
+        req.side_effect = [
+            (200, {"login": "moyashimisosoup"}),
+            (200, {"private": False, "homepage": "https://github.com/moyashimisosoup/app-factory/issues/42",
+                   "html_url": "https://github.com/moyashimisosoup/sample-learning-tool"}),
+        ]
+        _, created = app.create_repository(public, self.issue, "dummy-not-real")
+        self.assertFalse(created)
+        self.assertEqual(req.call_count, 2)
 
     @patch.object(app, "request_api")
     def test_no_create_when_existing_repo_is_unrelated(self, req):

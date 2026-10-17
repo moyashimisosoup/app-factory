@@ -1,6 +1,6 @@
 ---
 name: 新アプリ採用申請（公開情報のみ）
-about: GitHubに新規PRIVATEリポジトリを作る申請。ここに書いた内容は一般公開されます。
+about: GitHubに新規リポジトリを作る申請。標準Private。ここに書いた内容は一般公開されます。
 title: "APP FACTORY: "
 labels: []
 assignees: []
@@ -9,7 +9,7 @@ assignees: []
 > ⚠️ **これは公開リポジトリのIssueです。誰でも読めます。**
 > 非公開のアプリ構想、学校情報、個人情報、チャットURL、鍵、内部仕様を一切記載しないでください。
 > 名前・説明・作成依頼の有無は公開されます。非公開で管理したい案件はここで申請しないでください。
-> GitHubでの作成先リポジトリ自体はPrivateとして生成されます。
+> GitHubでの作成先は標準Privateです。Public作成は後述の明示承認が必要です。
 
 <!-- APP_FACTORY_REQUEST_V1 -->
 ~~~json
@@ -28,9 +28,11 @@ assignees: []
 
 - [ ] このIssueの内容は、世界中から閲覧可能で問題ない
 - [ ] Session Deckの全体台帳と既存GitHubリポジトリを照合し、重複しない
-- [ ] アプリを開発対象として採用し、Privateリポジトリの作成を希望する
-- [ ] 作成するリポジトリは当面Privateとし、公開は別途承認する
+- [ ] アプリを開発対象として採用し、指定した公開設定のリポジトリ作成を希望する
+- [ ] Publicの場合は、公開リポジトリの内容が誰でも見られることに明示同意した
+
+**Public作成の場合のみ:** JSONブロックの `schema_version` を `3`、`visibility` を `public` にし、`public_repo_ack: true` を追加してください。Privateのv2申請には `public_repo_ack` を含めないでください。
 
 **Issueを開くだけでは作成されません。** `moyashimisosoup`本人が `factory-approved` ラベルを付けた時だけGitHub Actionsが実行されます。ChatGPTにラベル付与を依頼する場合は、対象Issueを明示して承認してください。
 
-**重要:** 公開Issueには生成先のPrivateリポジトリURLを返信しません。作成後は所有者の認証済みGitHubで確認してください。
+**重要:** 公開Issueには生成先リポジトリURLを返信しません。作成後は所有者の認証済みGitHubで確認してください。
