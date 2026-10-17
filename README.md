@@ -52,12 +52,17 @@ GitHub Actionsの **App Factory CI** と **App Factory offline readiness tests**
 
 ### 3. 初めての動作確認
 
-1. [Issue作成](../../issues/new/choose)から、一般公開して問題のない**採用済み**のアプリ申請を作る。テンプレートの`repo_name`等を確実に変更する。
+1. [Issue作成](https://github.com/moyashimisosoup/app-factory/issues/new/choose)から、一般公開して問題のない**採用済み**のアプリ申請を作る。テンプレートの`repo_name`等を確実に変更する。
 2. **ラベルなし**ならリポジトリはできないことを確認する。
 3. Repoが未使用名であることを確かめてから、所有者が`factory-approved`を付ける。GitHub Actions `App Factory private repository creation`が実行される。
 4. Actionsが成功したら、**公開IssueにはPrivate RepoのURLが書かれない**ことを確認する。本人のGitHubリポジトリ一覧から生成先を開き、`Visibility: Private`を確認する。
 5. GitHub接続に新Repoが見える場合、ChatGPTが`README.md`、`AGENTS.md`、`index.html`、`docs/ROADMAP.md`を整える。Session DeckのAPP-IDは全体台帳との照合後に登録する。
 6. 同じIssueを編集して新しい名前に変更しても、承認済みslug以外の作成は拒否。作成済みの同じ申請は二重作成しない。
+
+## ChatGPTプロジェクト指示への追記
+
+- [ChatGPTプロジェクト用の短い追記文](docs/CHATGPT_PROJECT_ADDENDUM.md)に受付・本人承認・公開Issueの安全条件を記載しました。プロジェクト設定そのものはGitHubから変更できないため、ユーザーが一度手動で追加します。
+- [AGENTS.md](AGENTS.md)にも同じ権限境界を記載しました。ChatGPT、Codex、Claude Codeの別作業者は先にこの短い正本を確認してください。
 
 ## 注意事項と限界
 
