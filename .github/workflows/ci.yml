@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check worker syntax
-        run: python3 -m py_compile scripts/create_repo.py scripts/test_create_repo.py
+        run: python3 -m py_compile scripts/create_repo.py scripts/test_create_repo.py scripts/render_starter.py scripts/test_render_starter.py
       - name: Validate GitHub Actions YAML documents
         run: |
           ruby -ryaml -e 'ARGV.each { |f| YAML.parse_file(f) }' .github/workflows/ci.yml .github/workflows/preflight.yml .github/workflows/create-repo.yml
@@ -29,11 +29,26 @@ jobs:
           PY
       - name: Offline request, approval-lock, and idempotence tests
         run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
+      - name: Render test starter without changing any repository
+        run: |
+          python3 scripts/render_starter.py --repo-name sample-test-web --app-name "教材テスト" --description "静的Web雛形" --visibility private --out-dir "$RUNNER_TEMP/app-factory-starter"
+          test -f "$RUNNER_TEMP/app-factory-starter/README.md"
+          test -f "$RUNNER_TEMP/app-factory-starter/AGENTS.md"
+          test -f "$RUNNER_TEMP/app-factory-starter/index.html"
+          test -f "$RUNNER_TEMP/app-factory-starter/docs/ROADMAP.md"
+          if grep -R '%%APP_NAME' "$RUNNER_TEMP/app-factory-starter"; then
+            echo "Unresolved placeholder" >&2
+            exit 1
+          fi
       - name: Check workflows and template are present
         run: |
           test -f .github/workflows/create-repo.yml
           test -f .github/workflows/preflight.yml
           test -f .github/ISSUE_TEMPLATE/new-app.md
+          test -f docs/BRANCH_PROTECTION.md
+          test -f docs/INCIDENT_RUNBOOK.md
+          test -f docs/REPO_INITIALIZATION.md
+          test -f templates/web-minimal/index.html.tpl
           grep -q 'public_intake_ack' scripts/create_repo.py
           grep -q "github.event.issue.user.login == 'moyashimisosoup'" .github/workflows/create-repo.yml
           grep -q 'APP_FACTORY_REPO_CREATOR' .github/workflows/create-repo.yml

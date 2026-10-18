@@ -20,4 +20,12 @@
 5. 同一Issueの承認slugを変更・再作成しない。処理失敗時はGitHubの実行ログを確認し、非公開RepoのURLや秘密の漏洩を避けて原因を報告。
 6. 本番用コードを変更するときは小さなPR＋CI検証＋main読戻しを優先する。
 
+## 初期化と運用保護
+
+- mainへの変更はPR・CI成功を原則とし、GitHubのブランチRuleset適用状況を別途確認する。設定案だけで「保護済み」と報告しない。[設定手順](docs/BRANCH_PROTECTION.md)。
+- Actions失敗時は実Repoの有無・可視性を先に照合し、同一Issueのラベルを勝手に付け直さない。[復旧手順](docs/INCIDENT_RUNBOOK.md)。
+- GitHub Actions Secretに保存するPATの実際の期限はGitHub画面で確認し、期限前更新は所有者が行う。Secretの値は取得・表示しない。
+- Repo生成後のスターターは[初期化手順](docs/REPO_INITIALIZATION.md)に従い、テンプレートを必要な場合だけ使う。作成専用PATを既存Repoの内容編集に使わない。
+- Session Deckの台帳は最新情報と公開可否を照合してから更新。試験用Repoを新アプリとして二重登録しない。
+
 運用の正本は [README.md](README.md)。初期歴史資料は [Session Deck](https://github.com/moyashimisosoup/session-deck/blob/main/docs/APP_FACTORY_LAUNCH_PLAN.md)。

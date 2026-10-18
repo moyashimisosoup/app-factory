@@ -22,6 +22,16 @@ Public作成は既存のPrivate作成とは異なる明示オプトインです�
 - 形式検査、認証アカウント確認、既存名衝突時の拒否、Issue番号＋slugの承認ロック、再実行時の二重作成防止を実装。
 - **生成先RepoのURLを公開Issueや公開Actionsログには出さない。** 所有者がGitHub上で確認する。
 
+## 新規アプリの初期化と運用保護（2026-10-18）
+
+- [main保護設定](docs/BRANCH_PROTECTION.md)：PR必須・CI必須・強制pushと削除を禁止するRulesetの推奨値。**GitHub側のRulesetは未適用で、所有者による設定が必要**。
+- [障害復旧・PAT期限管理](docs/INCIDENT_RUNBOOK.md)：承認ラベルをむやみに再付与しない、作成済みRepoと可視性を先に確認する。
+- [初期ファイルと台帳引継ぎ](docs/REPO_INITIALIZATION.md)：作成後のREADME、AGENTS.md、index.html、ロードマップ、APP-IDの確認工程を分離。
+- [最小Webスターター](templates/web-minimal/)：依存なしでスマートフォン対応を目指す静的HTMLの雛形。必要時のみ使う。
+- [任意の安全なレンダラー](scripts/render_starter.py)：新規フォルダ内に4ファイルを生成し、既存フォルダへの上書きを拒否。生成先Repoへの自動書込みや秘密情報の取得は行わない。
+
+作成専用トークンの権限を広げないため、**スターターのGitHubへの書込みは既存の認証済みGitHub接続で別途行う**。これらのファイルの追加で、Repo作成、APP-ID台帳登録、Web公開が自動完了するわけではありません。
+
 ## ChatGPT側での操作
 
 | ChatGPTへの指示 | 処理 |
