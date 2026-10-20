@@ -1,6 +1,25 @@
 # App Factory: main保護の運用設定
 
-対象: moyashimisosoup/app-factory（Public）。本書は設定手順であり、GitHub Rulesetの適用済み証拠ではありません。
+対象: moyashimisosoup/app-factory（Public）。この文書は保護の設定手順と保存済み設定の検証記録を併記します。
+
+## CHECKPOINT：main Ruleset設定済み（2026-10-20 20:31 JST）
+
+[Ruleset main（ID 25393436）](https://github.com/moyashimisosoup/app-factory/rules/25393436)について、ユーザーがGitHub設定画面から作成・修正し、GitHub API `GET /repos/moyashimisosoup/app-factory/rulesets/25393436` の読戻しで以下を確認。
+
+| 項目 | 読戻し確認値 |
+| --- | --- |
+| enforcement | `active` |
+| target / ref condition | `branch` / `~DEFAULT_BRANCH`（main） |
+| PR必須 | `pull_request` |
+| 必要な承認数 | `0`（一人開発のため） |
+| CI必須 | `required_status_checks`: `verify`（GitHub Actions integration_id `15368`） |
+| CI厳格モード | `strict_required_status_checks_policy: true` |
+| 強制push禁止 | `non_fast_forward` |
+| 削除禁止 | `deletion` |
+| Bypass | 空配列 |
+
+API最終更新日時: `2026-10-20T20:31:27.032+09:00`。**GitHub設定の保存・適用状態は確認済み**。このCHECKPOINT自体のPRが規則に従ってマージ可能かどうかはPR実施後に別途確認する。保護を迂回するための直接pushや設定緩和は行わない。
+
 
 ## 推奨: main用Ruleset
 
@@ -16,8 +35,8 @@
 
 ## 確認の境界
 
-- 2026-10-18の初回点検ではGitHub API GET /repos/moyashimisosoup/app-factory/rulesets の応答が空配列であり、Rulesetは未設定。
-- GitHub接続にRulesetを作成する操作がないため、ユーザーのGitHub画面での設定が必要。設定手順をコミットしただけでは保護は有効にならない。
+- 2026-10-18の初回点検ではGitHub API GET /repos/moyashimisosoup/app-factory/rulesets の応答が空配列であり、Rulesetは未設定だった。**現在は上記の設定が有効**。
+- GitHub接続にRulesetを作成する操作がなかったため、ユーザーがGitHub画面で設定し、APIで読戻した。
 - Rulesetの適用後、変更後のGET結果と必要に応じてPRのステータスを照合して「適用済み」と記録する。
 - あとから共同開発者が増えた場合に1名以上のreviewを要求するか検討する。その場合、トークン保護のため作者以外のレビューを優先する。
 
