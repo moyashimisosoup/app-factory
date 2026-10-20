@@ -24,7 +24,7 @@ Public作成は既存のPrivate作成とは異なる明示オプトインです�
 
 ## 新規アプリの初期化と運用保護（2026-10-18）
 
-- [main保護設定](docs/BRANCH_PROTECTION.md)：PR必須・CI必須・強制pushと削除を禁止するRulesetの推奨値。**GitHub側のRulesetは未適用で、所有者による設定が必要**。
+- [main保護設定](docs/BRANCH_PROTECTION.md)：**2026-10-20にRuleset #25393436のActive・main対象・PR必須（承認0人）・必須CI `verify`・強制push禁止・削除禁止をGitHub APIで読戻し確認済み**。
 - [障害復旧・PAT期限管理](docs/INCIDENT_RUNBOOK.md)：承認ラベルをむやみに再付与しない、作成済みRepoと可視性を先に確認する。
 - [初期ファイルと台帳引継ぎ](docs/REPO_INITIALIZATION.md)：作成後のREADME、AGENTS.md、index.html、ロードマップ、APP-IDの確認工程を分離。
 - [最小Webスターター](templates/web-minimal/)：依存なしでスマートフォン対応を目指す静的HTMLの雛形。必要時のみ使う。
