@@ -30,19 +30,36 @@ jobs:
       - name: Preflight offline safety tests (no secret required)
         run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
 
-      - name: Validate adopted issue and create requested repository
-        id: factory
+      - name: Validate approved destination owner (no credential needed)
+        id: validate
+        env:
+          APP_FACTORY_ISSUE_BODY: ${{ github.event.issue.body }}
+        run: python3 scripts/create_repo.py --issue "${{ github.event.issue.number }}"
+
+      - name: Create under moyashimisosoup (legacy owner credential)
+        id: factory_default
+        if: steps.validate.outputs.target_owner == 'moyashimisosoup'
         env:
           APP_FACTORY_ISSUE_BODY: ${{ github.event.issue.body }}
           APP_FACTORY_ISSUE_TOKEN: ${{ github.token }}
           APP_FACTORY_REPO_CREATOR: ${{ secrets.APP_FACTORY_REPO_CREATOR }}
         run: python3 scripts/create_repo.py --issue "${{ github.event.issue.number }}" --execute
 
+      - name: Create under yama-books (isolated owner credential)
+        id: factory_yama
+        if: steps.validate.outputs.target_owner == 'yama-books'
+        env:
+          APP_FACTORY_ISSUE_BODY: ${{ github.event.issue.body }}
+          APP_FACTORY_ISSUE_TOKEN: ${{ github.token }}
+          APP_FACTORY_REPO_CREATOR: ${{ secrets.APP_FACTORY_YAMA_BOOKS_REPO_CREATOR }}
+        run: python3 scripts/create_repo.py --issue "${{ github.event.issue.number }}" --execute
+
       - name: Record confirmed result on public issue (URL redacted)
+        if: steps.factory_default.outcome == 'success' || steps.factory_yama.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
-          RESULT_STATUS: ${{ steps.factory.outputs.status }}
-          RESULT_VISIBILITY: ${{ steps.factory.outputs.visibility }}
+          RESULT_STATUS: ${{ steps.factory_default.outputs.status || steps.factory_yama.outputs.status }}
+          RESULT_VISIBILITY: ${{ steps.factory_default.outputs.visibility || steps.factory_yama.outputs.visibility }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
           case "$RESULT_VISIBILITY" in

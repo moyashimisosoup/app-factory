@@ -29,3 +29,10 @@
 - Session Deckの台帳は最新情報と公開可否を照合してから更新。試験用Repoを新アプリとして二重登録しない。
 
 運用の正本は [README.md](README.md)。初期歴史資料は [Session Deck](https://github.com/moyashimisosoup/session-deck/blob/main/docs/APP_FACTORY_LAUNCH_PLAN.md)。
+
+## 対象オーナーの拡張（v4）
+
+- v2/v3申請は引き続き`moyashimisosoup`専用。v4申請だけ、明示した`target_owner=yama-books`を許可する。任意の第三者所有者への作成は不可。
+- 各オーナーの作成権限は別Actions Secretに分離する。環境変数 `APP_FACTORY_YAMA_BOOKS_REPO_CREATOR` の実在・有効性は確認なしに断言しない。
+- Scriptは認証ユーザーIDと申請先を照合し、既存名衝突・owner・可視性・Issue紐付けを確認する。承認ロックにownerを含めて変更を防ぐ。
+- 新しい対象Issue・作成先・Public可視性を再確認し、**Repo作成に対する別途の明示承認**を得てから`factory-approved`を付与する。

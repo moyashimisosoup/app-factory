@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""App Factory v0.2: validated private/public opt-in GitHub repository creation.
+"""App Factory v0.3: validated owner-scoped private/public GitHub repository creation.
 
 Designed to run in a PUBLIC intake repository on an owner-approved Issue label.
 WARNING: Issue contents and Action logs are public. Never enter private app ideas.
@@ -17,7 +17,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
-OWNER = "moyashimisosoup"
+OWNER = "moyashimisosoup"  # Legacy/default target owner and factory operator
+ADDITIONAL_OWNER = "yama-books"  # Explicitly allowed only in schema v4
 FACTORY_REPOSITORY = f"{OWNER}/app-factory"
 MARKER = "<!-- APP_FACTORY_REQUEST_V1 -->"
 ISSUE_BLOCK = re.compile(
@@ -28,6 +29,8 @@ RESERVED = {"app-factory", "session-deck", "koten", "tradingsystem", "example-le
 LOCK_PREFIX = "<!-- APP_FACTORY_APPROVAL_LOCK_V1"
 PRIVATE_FIELDS = {"schema_version", "repo_name", "app_name", "description", "visibility", "decision", "public_intake_ack"}
 PUBLIC_FIELDS = PRIVATE_FIELDS | {"public_repo_ack"}
+TARGET_PRIVATE_FIELDS = PRIVATE_FIELDS | {"target_owner"}
+TARGET_PUBLIC_FIELDS = PUBLIC_FIELDS | {"target_owner"}
 BASE = "https://api.github.com"
 API_VERSION = "2022-11-28"
 
@@ -42,6 +45,7 @@ class RequestData:
     app_name: str
     description: str
     visibility: str
+    target_owner: str = OWNER
 
 
 def parse_request(body: str) -> RequestData:
@@ -73,8 +77,19 @@ def parse_request(body: str) -> RequestData:
         if data["public_repo_ack"] is not True:
             raise FactoryError("Explicit acknowledgement of PUBLIC destination visibility is required.")
         visibility = "public"
+    elif schema == 4:
+        if data.get("target_owner") != ADDITIONAL_OWNER:
+            raise FactoryError("Schema v4 requires target_owner=yama-books.")
+        if set(data) == TARGET_PRIVATE_FIELDS and data["visibility"] == "private":
+            visibility = "private"
+        elif set(data) == TARGET_PUBLIC_FIELDS and data["visibility"] == "public":
+            if data["public_repo_ack"] is not True:
+                raise FactoryError("Explicit acknowledgement of PUBLIC destination visibility is required.")
+            visibility = "public"
+        else:
+            raise FactoryError("Schema v4 requires exact fields and explicit visibility acknowledgement.")
     else:
-        raise FactoryError("Use schema v2 for private or v3 with public_repo_ack=true for public.")
+        raise FactoryError("Use schema v2/v3 for the default owner, or v4 for yama-books.")
     if data["public_intake_ack"] is not True:
         raise FactoryError("Explicit acknowledgement of PUBLIC Issue visibility is required.")
     if data["decision"] != "adopted":
@@ -89,7 +104,7 @@ def parse_request(body: str) -> RequestData:
         raise FactoryError("description must be 1-200 characters.")
     if any(c in title + desc for c in ("\r", "\n", "\x00")):
         raise FactoryError("app_name and description cannot contain line breaks or NUL.")
-    return RequestData(repo_name=slug, app_name=title.strip(), description=desc.strip(), visibility=visibility)
+    return RequestData(repo_name=slug, app_name=title.strip(), description=desc.strip(), visibility=visibility, target_owner=ADDITIONAL_OWNER if schema == 4 else OWNER)
 
 
 def request_api(token: str, method: str, path: str, payload: dict | None = None):
@@ -130,7 +145,8 @@ def ensure_approval_lock(data: RequestData, issue_number: int, issue_token: str)
         raise FactoryError("A positive source Issue number is required.")
     path = f"/repos/{FACTORY_REPOSITORY}/issues/{issue_number}/comments?per_page=100"
     visibility_lock = "" if data.visibility == "private" else " visibility=public"
-    expected = f"{LOCK_PREFIX} issue={issue_number} repo={data.repo_name}{visibility_lock} -->"
+    owner_lock = "" if data.target_owner == OWNER else f" owner={data.target_owner}"
+    expected = f"{LOCK_PREFIX} issue={issue_number} repo={data.repo_name}{visibility_lock}{owner_lock} -->"
 
     def inspect(comments):
         if not isinstance(comments, list):
@@ -171,15 +187,19 @@ def create_repository(data: RequestData, issue_number: int, token: str) -> tuple
     if type(issue_number) is not int or not 1 <= issue_number <= 10_000_000:
         raise FactoryError("A positive source Issue number is required.")
     if not token:
-        raise FactoryError("APP_FACTORY_REPO_CREATOR secret is missing.")
+        raise FactoryError("Repository creator credential is missing for the requested target owner.")
     status, me = request_api(token, "GET", "/user")
-    if status != 200 or me.get("login", "").lower() != OWNER:
+    if status != 200 or me.get("login", "").lower() != data.target_owner:
         raise FactoryError("Credential identity does not match the approved repository owner.")
 
-    existing_status, existing = request_api(token, "GET", f"/repos/{OWNER}/{quote(data.repo_name)}")
+    existing_status, existing = request_api(token, "GET", f"/repos/{data.target_owner}/{quote(data.repo_name)}")
     marker_url = f"https://github.com/{FACTORY_REPOSITORY}/issues/{issue_number}"
     if existing_status == 200:
-        if existing.get("private") is (data.visibility == "private") and existing.get("homepage") == marker_url:
+        if (
+            existing.get("full_name", "").lower() == f"{data.target_owner}/{data.repo_name}"
+            and existing.get("private") is (data.visibility == "private")
+            and existing.get("homepage") == marker_url
+        ):
             return existing["html_url"], False
         raise FactoryError("Repository name already exists and is not owned by this request.")
     if existing_status != 404:
@@ -198,7 +218,7 @@ def create_repository(data: RequestData, issue_number: int, token: str) -> tuple
     created_status, new_repo = request_api(token, "POST", "/user/repos", payload)
     if (
         created_status != 201
-        or new_repo.get("full_name", "").lower() != f"{OWNER}/{data.repo_name}"
+        or new_repo.get("full_name", "").lower() != f"{data.target_owner}/{data.repo_name}"
         or new_repo.get("private") is not (data.visibility == "private")
     ):
         raise FactoryError("GitHub did not confirm the requested repository visibility and owner.")
@@ -221,16 +241,19 @@ def main(argv: list[str] | None = None) -> int:
             )
             result = {"status": "created" if created else "already-created", "repo_url": repo_url}
         else:
-            result = {"status": "validated-only", "repo_name": data.repo_name, "visibility": data.visibility}
+            result = {"status": "validated-only", "repo_name": data.repo_name, "visibility": data.visibility, "target_owner": data.target_owner}
         # Public Actions logs must never disclose destination URLs.
         if args.execute:
             print(json.dumps({"status": result["status"], "visibility": data.visibility}, ensure_ascii=False))
         else:
             print(json.dumps(result, ensure_ascii=False))
         output = os.environ.get("GITHUB_OUTPUT")
-        if output and args.execute:
+        if output:
             with open(output, "a", encoding="utf-8") as f:
-                f.write(f"status={result['status']}\nvisibility={data.visibility}\n")
+                if args.execute:
+                    f.write(f"status={result['status']}\nvisibility={data.visibility}\n")
+                else:
+                    f.write(f"target_owner={data.target_owner}\n")
         return 0
     except FactoryError as exc:
         # No untrusted Issue fields or response bodies in public workflow errors.

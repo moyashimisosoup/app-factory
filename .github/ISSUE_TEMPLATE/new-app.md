@@ -36,3 +36,8 @@ assignees: []
 **Issueを開くだけでは作成されません。** `moyashimisosoup`本人が `factory-approved` ラベルを付けた時だけGitHub Actionsが実行されます。ChatGPTにラベル付与を依頼する場合は、対象Issueを明示して承認してください。
 
 **重要:** 公開Issueには生成先リポジトリURLを返信しません。作成後は所有者の認証済みGitHubで確認してください。
+
+
+## yama-booksへの申請（schema v4）
+
+既存のv2/v3は`moyashimisosoup`専用です。作成先を`yama-books`にする場合、上記のJSONをv4として作成し直し、`target_owner: "yama-books"`を追加してください。公開作成は`schema_version: 4`、`visibility: "public"`、`public_repo_ack: true`が必要です。指定された所有者以外には作成しません。作成には所有者専用のActions Secret `APP_FACTORY_YAMA_BOOKS_REPO_CREATOR`が別途必要です。Issue登録後に対象Issue・作成先・可視性を再確認し、`factory-approved`で個別承認します。

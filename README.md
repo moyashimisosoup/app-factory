@@ -10,6 +10,14 @@
 
 作成専用Secretが**この実行で使用できたこと**は検証済み。ただしGitHub Actions Secretの値・期限・設定画面は取得していない。異なる申請や改変後の再承認に対する本番多重実行は未検証で、衝突・冪等性はユニットテストで確認した段階。初期ファイル自動配置、APP-ID登録、Pages公開は未自動化。作成テストを目的なく繰り返さない。
 
+## 複数オーナー対応（2026-11-03 設計）
+
+- 従来のv2 Private／v3 Publicは`moyashimisosoup`宛てのまま維持します。
+- v4のみ、`target_owner: "yama-books"`を明示して別アカウントに作成可能。Publicには`public_repo_ack: true`が必要。未認可の第三者名・任意owner文字列は拒否します。
+- Workflowsは宛先で作成用Secretを分離し、`moyashimisosoup`には`APP_FACTORY_REPO_CREATOR`、`yama-books`には`APP_FACTORY_YAMA_BOOKS_REPO_CREATOR`を使用します。各トークンは対応するアカウント自身で発行してActions Secretへ登録し、チャット・Issueに貼らないでください。**新しいSecretの登録状態や存在は未確認**です。
+- 実行前に作成用トークンの実アカウントと申請先が一致することを検査し、不一致なら作成を拒否します。承認ロックには所有者も固定し、同じIssueから別所有者への再利用を防ぎます。
+- Factoryの公開Issue受付と、対象Issue・owner・Public可視性の**追加作成承認**は別工程。作成確認前に`factory-approved`を付与しません。
+
 ## Public作成の追加条件
 
 Public作成は既存のPrivate作成とは異なる明示オプトインです。公開IssueのJSONに `schema_version: 3`、`visibility: public`、`public_repo_ack: true` を記載し、本人が対象Issueと公開設定を確認した後に承認ラベルを付けてください。Privateのv2申請を自動的にPublicへ変更することはありません。GitHub Pagesによるアプリ公開は別工程です。
