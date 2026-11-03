@@ -210,7 +210,7 @@ class GitHubCalls(unittest.TestCase):
         public = app.parse_request(body(schema_version=3, visibility="public", public_repo_ack=True))
         req.side_effect = [
             (200, {"login": "moyashimisosoup"}),
-            (200, {"private": False, "homepage": "https://github.com/moyashimisosoup/app-factory/issues/42",
+            (200, {"full_name": "moyashimisosoup/sample-learning-tool", "private": False, "homepage": "https://github.com/moyashimisosoup/app-factory/issues/42",
                    "html_url": "https://github.com/moyashimisosoup/sample-learning-tool"}),
         ]
         _, created = app.create_repository(public, self.issue, "dummy-not-real")
@@ -231,7 +231,7 @@ class GitHubCalls(unittest.TestCase):
     def test_retry_of_same_issue_is_noop(self, req):
         req.side_effect = [
             (200, {"login": "moyashimisosoup"}),
-            (200, {"private": True,
+            (200, {"full_name": "moyashimisosoup/sample-learning-tool", "private": True,
                    "homepage": "https://github.com/moyashimisosoup/app-factory/issues/42",
                    "html_url": "https://github.com/moyashimisosoup/sample-learning-tool"}),
         ]
@@ -250,6 +250,94 @@ class GitHubCalls(unittest.TestCase):
         with self.assertRaises(app.FactoryError):
             app.create_repository(self.payload, self.issue, "")
 
+
+
+class TargetOwnerTests(unittest.TestCase):
+    def test_v4_public_yama_books_requires_explicit_ack(self):
+        value = app.parse_request(body(schema_version=4, target_owner="yama-books",
+                                       visibility="public", public_repo_ack=True))
+        self.assertEqual((value.target_owner, value.visibility), ("yama-books", "public"))
+        for bad in (False, None, "true", 1):
+            with self.subTest(bad=bad), self.assertRaises(app.FactoryError):
+                app.parse_request(body(schema_version=4, target_owner="yama-books",
+                                       visibility="public", public_repo_ack=bad))
+
+    def test_v4_private_yama_books(self):
+        v = app.parse_request(body(schema_version=4, target_owner="yama-books"))
+        self.assertEqual((v.target_owner, v.visibility), ("yama-books", "private"))
+
+    def test_v4_reject_other_owners_and_unapproved_fields(self):
+        for target in ("moyashimisosoup", "another-owner", "../yama-books", ""):
+            with self.subTest(target=target), self.assertRaises(app.FactoryError):
+                app.parse_request(body(schema_version=4, target_owner=target,
+                                       visibility="public", public_repo_ack=True))
+        with self.assertRaises(app.FactoryError):
+            app.parse_request(body(schema_version=4, target_owner="yama-books",
+                                   visibility="public", public_repo_ack=True, secret="x"))
+
+    def test_legacy_schemas_cannot_redirect_owner(self):
+        for v in (2, 3):
+            with self.subTest(v=v), self.assertRaises(app.FactoryError):
+                app.parse_request(body(schema_version=v, target_owner="yama-books",
+                                       **({"visibility": "public", "public_repo_ack": True} if v == 3 else {})))
+
+    @patch.object(app, "request_api")
+    def test_v4_lock_binds_target_owner(self, api):
+        v = app.parse_request(body(schema_version=4, target_owner="yama-books",
+                                   visibility="public", public_repo_ack=True))
+        expected = "<!-- APP_FACTORY_APPROVAL_LOCK_V1 issue=42 repo=sample-learning-tool visibility=public owner=yama-books -->"
+        bot = {"user": {"login": "github-actions[bot]"}, "body": expected}
+        api.side_effect = [(200, []), (201, {"id": 1}), (200, [bot])]
+        app.ensure_approval_lock(v, 42, "test-issue-token")
+        self.assertIn(expected, api.call_args_list[1].args[3]["body"])
+
+    @patch.object(app, "request_api")
+    def test_approval_lock_rejects_owner_change(self, api):
+        v = app.parse_request(body(schema_version=4, target_owner="yama-books",
+                                   visibility="public", public_repo_ack=True))
+        default_record = {"user": {"login": "github-actions[bot]"},
+                          "body": "<!-- APP_FACTORY_APPROVAL_LOCK_V1 issue=42 repo=sample-learning-tool visibility=public -->"}
+        api.return_value = (200, [default_record])
+        with self.assertRaisesRegex(app.FactoryError, "different approval lock"):
+            app.ensure_approval_lock(v, 42, "test-issue-token")
+
+    @patch.object(app, "request_api")
+    def test_create_yama_books_public_with_identity_check(self, api):
+        v = app.parse_request(body(schema_version=4, target_owner="yama-books",
+                                   visibility="public", public_repo_ack=True))
+        api.side_effect = [
+            (200, {"login": "yama-books"}),
+            (404, None),
+            (201, {"full_name": "yama-books/sample-learning-tool", "private": False,
+                   "html_url": "https://github.com/yama-books/sample-learning-tool"}),
+        ]
+        url, created = app.create_repository(v, 42, "yama-owner-credential")
+        self.assertTrue(created)
+        self.assertEqual(url, "https://github.com/yama-books/sample-learning-tool")
+        self.assertEqual(api.call_args_list[1].args[2], "/repos/yama-books/sample-learning-tool")
+        self.assertEqual(api.call_args_list[2].args[2], "/user/repos")
+
+    @patch.object(app, "request_api")
+    def test_yama_books_cannot_use_default_owner_token(self, api):
+        v = app.parse_request(body(schema_version=4, target_owner="yama-books",
+                                   visibility="public", public_repo_ack=True))
+        api.return_value = (200, {"login": "moyashimisosoup"})
+        with self.assertRaisesRegex(app.FactoryError, "identity"):
+            app.create_repository(v, 42, "wrong-owner-token")
+        self.assertEqual(api.call_count, 1)
+
+    @patch.object(app, "request_api")
+    def test_existing_other_owner_cannot_be_accepted(self, api):
+        v = app.parse_request(body(schema_version=4, target_owner="yama-books",
+                                   visibility="public", public_repo_ack=True))
+        api.side_effect = [
+            (200, {"login": "yama-books"}),
+            (200, {"full_name": "moyashimisosoup/sample-learning-tool",
+                   "private": False, "homepage": "https://github.com/moyashimisosoup/app-factory/issues/42",
+                   "html_url": "https://github.com/moyashimisosoup/sample-learning-tool"}),
+        ]
+        with self.assertRaisesRegex(app.FactoryError, "already exists"):
+            app.create_repository(v, 42, "yama-owner-credential")
 
 if __name__ == "__main__":
     unittest.main()
